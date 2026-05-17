@@ -1,159 +1,189 @@
-# Turborepo starter
+# 🎵 Vibebox
 
-This Turborepo starter is maintained by the Turborepo core team.
+> *No more aux cord dictators. No more shouted requests. Just music, chosen together.*
 
-## Using this example
+---
 
-Run the following command:
+## The Problem
 
-```sh
-npx create-turbo@latest
+You're in a hostel room at 1am. Five people, five different music tastes, one Bluetooth speaker. One person grabbed the aux cord twenty minutes ago and hasn't let go. Someone shouts a request — it gets ignored. Someone else tries to grab the phone — awkward. A terrible song comes on and everyone suffers in silence because no one wants to cause a scene.
+
+This happens everywhere: road trips, post-hackathon chill sessions, college common rooms, house parties. Controlling the music is always a power struggle. There's no democratic way to handle it.
+
+**The pain points:**
+- The "Aux Cord Dictator" kills the collective vibe
+- Passing a phone around to queue songs is disruptive and chaotic
+- No mechanism for the group to collectively skip a bad song
+- No way to read the room's energy and keep the vibe consistent
+
+---
+
+## The Solution
+
+**Vibebox** is a real-time, collaborative music queue system where everyone in the room has a voice — and the music adapts to the collective mood.
+
+Anyone joins a session via a 4-character room code. Everyone can search songs via Spotify and add them to a shared queue. The queue is ordered democratically: upvoted songs rise, downvoted songs fall. If a song drops below a vote threshold, it auto-skips — no confrontation needed.
+
+An AI vibe engine monitors the BPM and energy of queued tracks and suggests smooth transitions between genres, so the playlist never whiplashes from death metal to acoustic folk.
+
+---
+
+## Features (MVP)
+
+| Feature | Description |
+|---|---|
+| 🚪 Room creation & joining | Host creates a session, guests join via room code |
+| 🔍 Spotify song search | Search any track and add it to the shared queue |
+| 🗳️ Live upvote / downvote | Everyone votes; queue reorders in real time |
+| ⏭️ Auto-skip | Songs below vote threshold are automatically removed |
+| 🕵️ Anonymous voting | Votes are private — no peer pressure |
+| 👑 Host controls | Host can pin, remove, or override any song |
+| 🤖 AI vibe engine | Analyzes BPM/energy to suggest genre-smooth transitions |
+| 📊 Crowd energy meter | Live visual showing the room's collective vibe score |
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| Frontend | Next.js 14 | SSR, routing, API routes, production-ready |
+| Styling | Tailwind CSS + shadcn/ui | Fast, accessible, consistent UI |
+| Animations | Framer Motion | Smooth queue reorder transitions |
+| Backend | NestJS | Modular, enterprise-grade, WebSocket support built-in |
+| Runtime | Node.js | Event-driven — ideal for real-time systems |
+| Database | PostgreSQL (Supabase) | Reliable structured data + managed hosting |
+| ORM | Prisma | Type-safe queries, easy migrations |
+| Real-time | Socket.IO | Live queue sync, vote events, vibe updates |
+| Auth | Clerk | Google/Spotify OAuth in under an hour |
+| Music API | Spotify Web API | Song search, metadata, BPM, audio features |
+| AI Layer | OpenAI API | Mood analysis, vibe continuity recommendations |
+| State | Zustand | Lightweight client-side state for queue/votes |
+| Monorepo | Turborepo | Shared types between frontend and backend |
+| Deploy (FE) | Vercel | Optimized Next.js deployment |
+| Deploy (BE) | Railway | Backend + environment variables, easy setup |
+| CI/CD | GitHub Actions | Auto-deploy on merge to `main` |
+
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                       CLIENT                        │
+│   Host Dashboard │ Shared Queue View │ Vote + Search │
+└────────────┬──────────────┬──────────────────────────┘
+             │  REST (HTTP) │  Socket.IO (WebSocket)
+┌────────────▼──────────────▼──────────────────────────┐
+│                  BACKEND (NestJS)                     │
+│  Room Module │ Queue Module │ Vote Engine │ Auth       │
+│         Spotify Module │ AI Vibe Engine               │
+└───────┬───────────────┬───────────────────────────────┘
+         │               │
+    ┌────▼────┐    ┌──────▼──────┐    ┌────────────┐
+    │PostgreSQL│   │ Spotify API │    │ OpenAI API │
+    │(Supabase)│   │ (search/BPM)│    │ (mood AI)  │
+    └──────────┘   └─────────────┘    └────────────┘
 ```
 
-## What's inside?
+### User Flow
 
-This Turborepo includes the following packages/apps:
+1. **Host** opens the app → clicks "Create Room" → gets a 4-character code (e.g. `AUX7`)
+2. **Guests** enter the code on their phone → instantly join the live session
+3. Anyone searches for a song via Spotify → adds it to the shared queue
+4. All connected clients see the queue update in real time via Socket.IO
+5. Users upvote songs they want sooner, downvote songs they don't want
+6. Queue auto-reorders by score every few seconds
+7. If a song's score drops below `-3`, it is auto-skipped
+8. The AI vibe engine reads BPM/energy of the top 5 queued songs and flags jarring transitions
+9. Host sees the crowd energy meter — a live composite of BPM averages and vote velocity
 
-### Apps and Packages
+### WebSocket Events
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+| Event | Direction | Description |
+|---|---|---|
+| `room:join` | Client → Server | User joins a session |
+| `room:leave` | Client → Server | User disconnects |
+| `song:add` | Client → Server | Add song to queue |
+| `song:vote` | Client → Server | Cast upvote or downvote |
+| `song:skip` | Server → Clients | Auto-skip triggered |
+| `queue:update` | Server → Clients | Broadcast reordered queue |
+| `vibe:update` | Server → Clients | Push updated mood/energy analytics |
+| `host:update` | Server → Clients | Broadcast host action (pin/remove) |
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+---
 
-### Utilities
+## Local Setup
 
-This Turborepo has some additional tools already setup for you:
+### Prerequisites
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+- Node.js 18+
+- PostgreSQL (or a free [Supabase](https://supabase.com) project)
+- Spotify Developer account → [create an app](https://developer.spotify.com/dashboard)
+- OpenAI API key → [platform.openai.com](https://platform.openai.com)
+- Clerk account → [clerk.com](https://clerk.com)
 
-### Build
+### 1. Clone the repo
 
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+git clone https://github.com/debug-ger/The-Democratic-Aux-Cord-Hostel-Event-DJ-.git
+cd The-Democratic-Aux-Cord-Hostel-Event-DJ-
 ```
 
-Without global `turbo`, use your package manager:
+### 2. Install dependencies
 
-```sh
-cd my-turborepo
-npx turbo build
-npm dlx turbo build
-npm exec turbo build
+```bash
+npm install
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### 3. Set up environment variables
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
+**Backend** (`apps/server/.env`):
+```env
+DATABASE_URL=postgresql://user:password@host:5432/auxcord
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+OPENAI_API_KEY=your_openai_key
+CLERK_SECRET_KEY=your_clerk_secret
+JWT_SECRET=your_jwt_secret
 ```
 
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-npm exec turbo build --filter=docs
-npm exec turbo build --filter=docs
+**Frontend** (`apps/web/.env.local`):
+```env
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
 ```
 
-### Develop
+### 4. Set up the database
 
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
+```bash
+cd apps/server
+npx prisma migrate dev --name init
+npx prisma generate
 ```
 
-Without global `turbo`, use your package manager:
+### 5. Run locally
 
-```sh
-cd my-turborepo
-npx turbo dev
-npm exec turbo dev
-npm exec turbo dev
+```bash
+# From root — starts both frontend and backend
+npm run dev
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+Frontend → `http://localhost:3000`  
+Backend → `http://localhost:3001`
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+---
 
-```sh
-turbo dev --filter=web
-```
+## Contributors
 
-Without global `turbo`:
+| Name | Role |
+|---|---|
+| — | Frontend (Next.js, UI/UX) |
+| — | Backend (NestJS, WebSockets) |
+| — | Database + Spotify API integration |
+| — | AI vibe engine + analytics |
 
-```sh
-npx turbo dev --filter=web
-npm exec turbo dev --filter=web
-npm exec turbo dev --filter=web
-```
+---
 
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-npm exec turbo login
-npm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-npm exec turbo link
-npm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+*Built at [Integrata_VIEW] · [17-05-2026]*
