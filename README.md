@@ -1,4 +1,3 @@
-# The-Democratic-Aux-Cord-Hostel-Event-DJ-
 # 🎵 The Democratic Aux Cord-Hostel-Event-DJ-
 
 > *No more aux cord dictators. No more shouted requests. Just music, chosen together.*
