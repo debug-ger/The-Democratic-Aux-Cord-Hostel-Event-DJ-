@@ -8,15 +8,19 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Song, SocketEvents, VotePayload, AddSongPayload } from '@repo/types';
+import { SocketEvents } from '@repo/types';
+import type { Song, AiSuggestion } from '@repo/types';
+import { AiService } from '../ai/ai.service';
 
 // Auto-skip threshold
 const SKIP_THRESHOLD = -3;
 
 interface RoomState {
   queue: Song[];
+  history: Song[];
   hostSocketId: string | null;
   members: Set<string>;
+  lastAiSuggestion?: AiSuggestion | null;
 }
 
 @WebSocketGateway({
@@ -27,11 +31,10 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  // In-memory room state for MVP (swap for Redis in production)
   private rooms = new Map<string, RoomState>();
-
-  // Track which room each socket belongs to
   private socketRoomMap = new Map<string, string>();
+
+  constructor(private aiService: AiService) {}
 
   // ── Lifecycle ─────────────────────────────────────────────────
 
@@ -68,6 +71,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!this.rooms.has(code)) {
       this.rooms.set(code, {
         queue: [],
+        history: [],
         hostSocketId: isHost ? client.id : null,
         members: new Set(),
       });
@@ -80,8 +84,12 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room.hostSocketId = client.id;
     }
 
-    // Send current queue state to the joining user
-    client.emit(SocketEvents.QUEUE_UPDATE, room.queue);
+    // Send current queue state as QueueUpdate envelope
+    client.emit(SocketEvents.QUEUE_UPDATE, {
+      roomCode: code,
+      queue: room.queue,
+      aiSuggestion: room.lastAiSuggestion ?? null,
+    });
     this.emitRoomStats(code, room);
     console.log(`[WS] ${client.id} joined room ${code} (host: ${isHost})`);
   }
@@ -101,17 +109,16 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(SocketEvents.SONG_ADD)
   handleAddSong(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: AddSongPayload,
+    @MessageBody() payload: any,
   ) {
-    const code = payload.roomCode.toUpperCase();
+    const code = (payload.roomCode as string).toUpperCase();
     const room = this.rooms.get(code);
     if (!room) return;
 
-    // Prevent duplicates
     const exists = room.queue.some((s) => s.id === payload.song.id);
     if (!exists) {
       room.queue.push({ ...payload.song, score: 0 });
-      this.broadcastQueue(code, room.queue);
+      this.broadcastQueueWithAi(code, room);
       this.broadcastVibeUpdate(code, room.queue);
     }
   }
@@ -119,9 +126,9 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(SocketEvents.SONG_VOTE)
   handleVote(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: VotePayload,
+    @MessageBody() payload: any,
   ) {
-    const code = payload.roomCode.toUpperCase();
+    const code = (payload.roomCode as string).toUpperCase();
     const room = this.rooms.get(code);
     if (!room) return;
 
@@ -131,29 +138,109 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     room.queue[songIndex].score += payload.delta;
 
     if (room.queue[songIndex].score <= SKIP_THRESHOLD) {
-      // Auto-skip: remove and notify
       const skipped = room.queue.splice(songIndex, 1)[0];
       this.server.to(code).emit(SocketEvents.SONG_SKIP, { song: skipped, reason: 'vote-threshold' });
       console.log(`[WS] Auto-skipped "${skipped.title}" in room ${code}`);
     } else {
-      // Re-sort queue by score descending
       room.queue.sort((a, b) => b.score - a.score);
     }
 
-    this.broadcastQueue(code, room.queue);
+    this.broadcastQueueWithAi(code, room);
+    this.broadcastVibeUpdate(code, room.queue);
+  }
+
+  @SubscribeMessage(SocketEvents.SONG_NEXT)
+  handleNextSong(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    const code = (payload.roomCode as string).toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) return;
+
+    if (room.queue.length > 0) {
+      const finishedSong = room.queue.shift();
+      if (finishedSong) {
+        room.history.push(finishedSong);
+      }
+      this.broadcastQueueWithAi(code, room);
+      this.broadcastVibeUpdate(code, room.queue);
+    }
+  }
+
+  @SubscribeMessage(SocketEvents.SONG_PREV)
+  handlePrevSong(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    const code = (payload.roomCode as string).toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) return;
+
+    if (room.history.length > 0) {
+      const previousSong = room.history.pop();
+      if (previousSong) {
+        previousSong.score = 999;
+        room.queue.unshift(previousSong);
+        this.broadcastQueueWithAi(code, room);
+        this.broadcastVibeUpdate(code, room.queue);
+      }
+    }
+  }
+
+  @SubscribeMessage(SocketEvents.HOST_ACTION)
+  handleHostAction(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    const code = (payload.roomCode as string).toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) return;
+
+    if (room.hostSocketId !== client.id) return;
+
+    const songIndex = room.queue.findIndex((s) => s.id === payload.trackId);
+    if (songIndex === -1) return;
+
+    if (payload.action === 'remove') {
+      room.queue.splice(songIndex, 1);
+    } else if (payload.action === 'pin') {
+      const [pinnedSong] = room.queue.splice(songIndex, 1);
+      pinnedSong.score = 999;
+      room.queue.unshift(pinnedSong);
+    }
+
+    this.broadcastQueueWithAi(code, room);
     this.broadcastVibeUpdate(code, room.queue);
   }
 
   // ── Helpers ───────────────────────────────────────────────────
 
-  private broadcastQueue(roomCode: string, queue: Song[]) {
-    this.server.to(roomCode).emit(SocketEvents.QUEUE_UPDATE, queue);
+  private async broadcastQueueWithAi(roomCode: string, room: RoomState) {
+    // Broadcast immediately with current AI suggestion
+    this.server.to(roomCode).emit(SocketEvents.QUEUE_UPDATE, {
+      roomCode,
+      queue: room.queue,
+      aiSuggestion: room.lastAiSuggestion ?? null,
+    });
+
+    // Then compute AI suggestion in background and re-broadcast if available
+    if (room.queue.length >= 2) {
+      const suggestion = await this.aiService.analyzeVibeTransition(room.queue);
+      room.lastAiSuggestion = suggestion;
+      this.server.to(roomCode).emit(SocketEvents.QUEUE_UPDATE, {
+        roomCode,
+        queue: room.queue,
+        aiSuggestion: suggestion,
+      });
+    } else {
+      room.lastAiSuggestion = null;
+    }
   }
 
   private broadcastVibeUpdate(roomCode: string, queue: Song[]) {
     if (queue.length === 0) return;
 
-    // Compute a simple vibe score from avg score of top 5 songs
     const top5 = queue.slice(0, 5);
     const avgScore = top5.reduce((sum, s) => sum + s.score, 0) / top5.length;
     const bpmAverage = top5.reduce((sum, s) => sum + (s.bpm ?? 120), 0) / top5.length;

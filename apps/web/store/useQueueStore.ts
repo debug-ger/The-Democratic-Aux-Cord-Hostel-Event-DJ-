@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
-import { Song, SocketEvents, VibeUpdate, AddSongPayload, VotePayload } from '@repo/types';
+import {
+  Song,
+  SocketEvents,
+  VibeUpdate,
+  AddSongPayload,
+  VotePayload,
+  HostActionPayload,
+  AiSuggestion,
+  QueueUpdate,
+} from '@repo/types';
 
 interface RoomStats {
   memberCount: number;
@@ -16,12 +25,16 @@ interface QueueStore {
   queue: Song[];
   vibe: VibeUpdate | null;
   roomStats: RoomStats | null;
+  aiSuggestion: AiSuggestion | null;
 
   // Actions
   connect: (roomCode: string, isHost?: boolean) => void;
   disconnect: () => void;
   addSong: (song: Omit<Song, 'score'>) => void;
   voteSong: (trackId: string, delta: 1 | -1) => void;
+  nextSong: () => void;
+  prevSong: () => void;
+  hostAction: (action: 'pin' | 'remove', trackId: string) => void;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001';
@@ -33,6 +46,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   queue: [],
   vibe: null,
   roomStats: null,
+  aiSuggestion: null,
 
   connect: (roomCode, isHost = false) => {
     const existing = get().socket;
@@ -47,7 +61,15 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 
     socket.on('disconnect', () => set({ connected: false }));
 
-    socket.on(SocketEvents.QUEUE_UPDATE, (queue: Song[]) => set({ queue }));
+    // QUEUE_UPDATE carries { roomCode, queue, aiSuggestion } — always guard queue as array
+    socket.on(SocketEvents.QUEUE_UPDATE, (data: QueueUpdate) => {
+      if (data.roomCode === roomCode) {
+        set({
+          queue: Array.isArray(data.queue) ? data.queue : [],
+          aiSuggestion: data.aiSuggestion ?? null,
+        });
+      }
+    });
 
     socket.on(SocketEvents.VIBE_UPDATE, (vibe: VibeUpdate) => set({ vibe }));
 
@@ -63,7 +85,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   disconnect: () => {
     const { socket } = get();
     if (socket) socket.disconnect();
-    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null });
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null });
   },
 
   addSong: (song) => {
@@ -78,5 +100,22 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     if (!socket || !roomCode) return;
     const payload: VotePayload = { roomCode, trackId, delta };
     socket.emit(SocketEvents.SONG_VOTE, payload);
+  },
+
+  nextSong: () => {
+    const { socket, roomCode } = get();
+    if (socket && roomCode) socket.emit(SocketEvents.SONG_NEXT, { roomCode });
+  },
+
+  prevSong: () => {
+    const { socket, roomCode } = get();
+    if (socket && roomCode) socket.emit(SocketEvents.SONG_PREV, { roomCode });
+  },
+
+  hostAction: (action, trackId) => {
+    const { socket, roomCode } = get();
+    if (!socket || !roomCode) return;
+    const payload: HostActionPayload = { roomCode, trackId, action };
+    socket.emit(SocketEvents.HOST_ACTION, payload);
   },
 }));
