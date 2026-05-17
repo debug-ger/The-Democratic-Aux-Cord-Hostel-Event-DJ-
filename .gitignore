@@ -63,3 +63,10 @@ pids
 *.pem
 .vscode
 .idea
+
+# SQLite / Prisma local DB
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+apps/server/prisma/migrations/
