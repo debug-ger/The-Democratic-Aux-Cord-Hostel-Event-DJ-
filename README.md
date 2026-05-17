@@ -4,7 +4,7 @@
 
 ---
 
-## The Significance & Solution
+## Problem Statement
 
 You're in a hostel room at 1am. Five people, five different music tastes, one Bluetooth speaker. One person grabbed the aux cord twenty minutes ago and hasn't let go. Someone shouts a request — it gets ignored. Someone else tries to grab the phone — awkward. A terrible song comes on and everyone suffers in silence because no one wants to cause a scene.
 
@@ -16,7 +16,9 @@ This happens everywhere: road trips, post-hackathon chill sessions, college comm
 - No mechanism for the group to collectively skip a bad song
 - No way to read the room's energy and keep the vibe consistent
 
+---
 
+## Solution
 
 **Vibebox** is a real-time, collaborative music queue system where everyone in the room has a voice — and the music adapts to the collective mood.
 
@@ -26,7 +28,7 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
 
 ---
 
-## Features (MVP)
+## Features
 
 | Feature | Description |
 |---|---|
@@ -64,7 +66,7 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
 
 ---
 
-## System Architecture/User Flow
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -84,7 +86,9 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
     └──────────┘   └─────────────┘    └────────────┘
 ```
 
-### User Flow
+---
+
+## User Flow
 
 1. **Host** opens the app → clicks "Create Room" → gets a 4-character code (e.g. `AUX7`)
 2. **Guests** enter the code on their phone → instantly join the live session
@@ -96,22 +100,9 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
 8. The AI vibe engine reads BPM/energy of the top 5 queued songs and flags jarring transitions
 9. Host sees the crowd energy meter — a live composite of BPM averages and vote velocity
 
-### WebSocket Events
-
-| Event | Direction | Description |
-|---|---|---|
-| `room:join` | Client → Server | User joins a session |
-| `room:leave` | Client → Server | User disconnects |
-| `song:add` | Client → Server | Add song to queue |
-| `song:vote` | Client → Server | Cast upvote or downvote |
-| `song:skip` | Server → Clients | Auto-skip triggered |
-| `queue:update` | Server → Clients | Broadcast reordered queue |
-| `vibe:update` | Server → Clients | Push updated mood/energy analytics |
-| `host:update` | Server → Clients | Broadcast host action (pin/remove) |
-
 ---
 
-## Local Setup Instructions
+## Local Setup
 
 ### Prerequisites
 
@@ -173,13 +164,27 @@ Backend → `http://localhost:3001`
 
 ---
 
+## Scalability
+
+Vibebox is built to scale smoothly for both small rooms and large events. By decoupling the static UI serving (via Vercel and Next.js) from the realtime socket event processing (NestJS + Socket.IO on Railway), we ensure high throughput with low latency. 
+The use of **Supabase** (Managed PostgreSQL) guarantees reliable state persistence, while the realtime sync relies entirely on stateless Socket.IO connections that broadcast events locally to room IDs, allowing horizontal scaling across multiple Node.js instances if backed by a Redis adapter in the future.
+
+---
+
 ## Future Scope
 
-- **Spotify OAuth Playback integration**: Allow the host's actual Spotify account to act as the player, automatically adding/skipping tracks via the Spotify Web Playback SDK.
-- **Advanced AI Genre Blending**: Use OpenAI and Spotify's audio analysis to pre-calculate the best transition times between dissimilar genres.
-- **Gamification & Leaderboards**: Track which users suggest the most upvoted songs and give them "Aux DJ" badges or multiplier voting power.
-- **Anti-Spam & Troll System**: AI-powered moderation to automatically block overly explicit tracks or users who repeatedly queue downvoted songs.
-- **QR Room Joining**: Generate a QR code on the host dashboard so guests can scan to join without typing the room code.
+| Future Feature | Real-World Impact |
+|---|---|
+| Spotify Connect | Direct playback control |
+| AI DJ Mode | Automatic vibe management |
+| Smart Recommendations | Personalized group suggestions |
+| Voice Commands | Hands-free interaction |
+| Cross-Platform Mobile App | Wider adoption |
+| Venue Mode | Cafes/events/nightclubs |
+| Smart Speaker Support | Alexa/Google Home integration |
+| Crowd Sentiment AI | Detect mood drops |
+| NFT/Event Pass Integration | Premium communities |
+| Music Analytics Dashboard | Insights for hosts/events |
 
 ---
 
@@ -191,7 +196,3 @@ Backend → `http://localhost:3001`
 | — | Backend (NestJS, WebSockets) |
 | — | Database + Spotify API integration |
 | — | AI vibe engine + analytics |
-
----
-
-*Built at [Integrata_VIEW] · [17-05-2026]*
