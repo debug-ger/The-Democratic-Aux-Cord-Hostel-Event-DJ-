@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file.
+// Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -20,25 +20,31 @@ model User {
 }
 
 model Room {
-  id        String   @id @default(uuid())
-  roomCode  String   @unique
+  id        String    @id @default(uuid())
+  roomCode  String    @unique
   hostId    String
-  host      User     @relation("HostRooms", fields: [hostId], references: [id])
+  host      User      @relation("HostRooms", fields: [hostId], references: [id])
   queues    Queue[]
   sessions  Session[]
   playback  Playback?
   analytics Analytics?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Queue {
   id        String   @id @default(uuid())
   roomId    String
-  room      Room     @relation(fields: [roomId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   songId    String
+  title     String
+  artist    String
+  albumArt  String
   score     Int      @default(0)
   votes     Vote[]
+  position  Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([roomId, score])
 }
 
 model Vote {
@@ -46,35 +52,36 @@ model Vote {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   queueId   String
-  queue     Queue    @relation(fields: [queueId], references: [id])
-  voteType  Int      // 1 for upvote, -1 for downvote
+  queue     Queue    @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  /// 1 for upvote, -1 for downvote
+  voteType  Int
   createdAt DateTime @default(now())
 
   @@unique([userId, queueId])
 }
 
 model Session {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   roomId    String
-  room      Room     @relation(fields: [roomId], references: [id])
-  startedAt DateTime @default(now())
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  startedAt DateTime  @default(now())
   endedAt   DateTime?
 }
 
 model Playback {
   id          String   @id @default(uuid())
   roomId      String   @unique
-  room        Room     @relation(fields: [roomId], references: [id])
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   currentSong String?
   timestamp   Int      @default(0)
   updatedAt   DateTime @updatedAt
 }
 
 model Analytics {
-  id          String   @id @default(uuid())
-  roomId      String   @unique
-  room        Room     @relation(fields: [roomId], references: [id])
-  bpmAverage  Float    @default(0)
-  vibeScore   Float    @default(0)
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  roomId     String   @unique
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bpmAverage Float    @default(0)
+  vibeScore  Float    @default(0)
+  updatedAt  DateTime @updatedAt
 }

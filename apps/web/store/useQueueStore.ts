@@ -1,47 +1,60 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
+import { Song, SocketEvents, VibeUpdate, AddSongPayload, VotePayload } from '@repo/types';
 
-export interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  albumArt: string;
-  score: number;
+interface RoomStats {
+  memberCount: number;
 }
 
 interface QueueStore {
+  // Connection
   socket: Socket | null;
+  connected: boolean;
   roomCode: string | null;
+
+  // Queue state
   queue: Song[];
-  connect: (roomCode: string) => void;
+  vibe: VibeUpdate | null;
+  roomStats: RoomStats | null;
+
+  // Actions
+  connect: (roomCode: string, isHost?: boolean) => void;
   disconnect: () => void;
   addSong: (song: Omit<Song, 'score'>) => void;
-  voteSong: (trackId: string, delta: number) => void;
+  voteSong: (trackId: string, delta: 1 | -1) => void;
 }
 
-// In MVP, backend usually runs on 3001 locally
-const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001';
 
 export const useQueueStore = create<QueueStore>((set, get) => ({
   socket: null,
+  connected: false,
   roomCode: null,
   queue: [],
+  vibe: null,
+  roomStats: null,
 
-  connect: (roomCode: string) => {
-    const currentSocket = get().socket;
-    if (currentSocket) {
-      currentSocket.disconnect();
-    }
+  connect: (roomCode, isHost = false) => {
+    const existing = get().socket;
+    if (existing) existing.disconnect();
 
-    const socket = io(SOCKET_URL);
+    const socket = io(WS_URL, { transports: ['websocket', 'polling'] });
 
     socket.on('connect', () => {
-      console.log('Connected to WebSocket server');
-      socket.emit('room:join', roomCode);
+      set({ connected: true });
+      socket.emit(SocketEvents.ROOM_JOIN, { roomCode, isHost });
     });
 
-    socket.on('queue:update', (updatedQueue: Song[]) => {
-      set({ queue: updatedQueue });
+    socket.on('disconnect', () => set({ connected: false }));
+
+    socket.on(SocketEvents.QUEUE_UPDATE, (queue: Song[]) => set({ queue }));
+
+    socket.on(SocketEvents.VIBE_UPDATE, (vibe: VibeUpdate) => set({ vibe }));
+
+    socket.on(SocketEvents.ROOM_STATS, (stats: RoomStats) => set({ roomStats: stats }));
+
+    socket.on(SocketEvents.SONG_SKIP, ({ song }: { song: Song }) => {
+      console.log(`[WS] Song auto-skipped: ${song.title}`);
     });
 
     set({ socket, roomCode });
@@ -49,23 +62,21 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 
   disconnect: () => {
     const { socket } = get();
-    if (socket) {
-      socket.disconnect();
-      set({ socket: null, roomCode: null, queue: [] });
-    }
+    if (socket) socket.disconnect();
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null });
   },
 
   addSong: (song) => {
     const { socket, roomCode } = get();
-    if (socket && roomCode) {
-      socket.emit('song:add', { roomCode, song });
-    }
+    if (!socket || !roomCode) return;
+    const payload: AddSongPayload = { roomCode, song };
+    socket.emit(SocketEvents.SONG_ADD, payload);
   },
 
   voteSong: (trackId, delta) => {
     const { socket, roomCode } = get();
-    if (socket && roomCode) {
-      socket.emit('song:vote', { roomCode, trackId, delta });
-    }
+    if (!socket || !roomCode) return;
+    const payload: VotePayload = { roomCode, trackId, delta };
+    socket.emit(SocketEvents.SONG_VOTE, payload);
   },
 }));

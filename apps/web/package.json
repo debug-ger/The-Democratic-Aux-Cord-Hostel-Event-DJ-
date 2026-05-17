@@ -1,37 +1,38 @@
 {
   "name": "web",
   "version": "0.1.0",
-  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/types": "*",
     "@repo/ui": "*",
     "autoprefixer": "^10.5.0",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
-    "lucide-react": "^1.16.0",
-    "next": "16.2.0",
+    "lucide-react": "^0.469.0",
+    "next": "15.2.0",
     "postcss": "^8.4.31",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.6.0",
+    "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.4.19",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
-    "@types/node": "^22.15.3",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
-    "eslint": "^9.39.1",
-    "typescript": "5.9.2"
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.15.0",
+    "typescript": "^5.7.2"
   }
 }

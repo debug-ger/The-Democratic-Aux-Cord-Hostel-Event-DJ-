@@ -1,36 +1,30 @@
-import type { Metadata } from "next";
-import localFont from "next/font/local";
-import "./globals.css";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-});
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Vibebox",
-  description: "Real-time collaborative music queue.",
+  title: 'Vibebox — The Democratic Aux Cord',
+  description:
+    'Real-time collaborative music queue. No aux cord dictators. Everyone votes, everyone vibes.',
+  keywords: ['music', 'collaborative', 'queue', 'democratic', 'real-time', 'aux cord'],
+  openGraph: {
+    title: 'Vibebox — The Democratic Aux Cord',
+    description: 'No more aux cord dictators. Join a room, add songs, vote together.',
+    type: 'website',
+  },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
-      <body className="relative min-h-screen bg-background font-sans text-white overflow-hidden">
-        {/* Atmospheric Underglow */}
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary-start/20 via-background to-background blur-[140px]" />
-        
-        <main className="relative z-10 h-full w-full max-w-md mx-auto sm:max-w-xl md:max-w-4xl flex flex-col">
-          {children}
-        </main>
-      </body>
+    <html lang="en" className="dark">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="mesh-bg min-h-screen font-sans antialiased">{children}</body>
     </html>
   );
 }
