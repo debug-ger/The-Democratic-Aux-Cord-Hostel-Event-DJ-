@@ -4,7 +4,7 @@
 
 ---
 
-## The Problem
+## The Significance & Solution
 
 You're in a hostel room at 1am. Five people, five different music tastes, one Bluetooth speaker. One person grabbed the aux cord twenty minutes ago and hasn't let go. Someone shouts a request — it gets ignored. Someone else tries to grab the phone — awkward. A terrible song comes on and everyone suffers in silence because no one wants to cause a scene.
 
@@ -16,9 +16,7 @@ This happens everywhere: road trips, post-hackathon chill sessions, college comm
 - No mechanism for the group to collectively skip a bad song
 - No way to read the room's energy and keep the vibe consistent
 
----
 
-## The Solution
 
 **Vibebox** is a real-time, collaborative music queue system where everyone in the room has a voice — and the music adapts to the collective mood.
 
@@ -66,7 +64,7 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
 
 ---
 
-## System Architecture
+## System Architecture/User Flow
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -113,7 +111,7 @@ An AI vibe engine monitors the BPM and energy of queued tracks and suggests smoo
 
 ---
 
-## Local Setup
+## Local Setup Instructions
 
 ### Prerequisites
 
@@ -172,6 +170,16 @@ npm run dev
 
 Frontend → `http://localhost:3000`  
 Backend → `http://localhost:3001`
+
+---
+
+## Future Scope
+
+- **Spotify OAuth Playback integration**: Allow the host's actual Spotify account to act as the player, automatically adding/skipping tracks via the Spotify Web Playback SDK.
+- **Advanced AI Genre Blending**: Use OpenAI and Spotify's audio analysis to pre-calculate the best transition times between dissimilar genres.
+- **Gamification & Leaderboards**: Track which users suggest the most upvoted songs and give them "Aux DJ" badges or multiplier voting power.
+- **Anti-Spam & Troll System**: AI-powered moderation to automatically block overly explicit tracks or users who repeatedly queue downvoted songs.
+- **QR Room Joining**: Generate a QR code on the host dashboard so guests can scan to join without typing the room code.
 
 ---
 
