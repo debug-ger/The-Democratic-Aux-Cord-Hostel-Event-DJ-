@@ -11,7 +11,10 @@ export interface Song {
   /** iTunes 30-second preview URL */
   previewUrl?: string;
   /** BPM metadata from Spotify (optional, enriched when available) */
+  /** BPM metadata from Spotify (optional, enriched when available) */
   bpm?: number;
+  /** User who added the song */
+  userId?: string;
 }
 
 export interface Room {
@@ -31,6 +34,8 @@ export interface VotePayload {
 export interface AddSongPayload {
   roomCode: string;
   song: Omit<Song, 'score'>;
+  userId?: string;
+  username?: string;
 }
 
 export interface VibeUpdate {
@@ -58,6 +63,44 @@ export interface QueueUpdate {
   aiSuggestion?: AiSuggestion | null;
 }
 
+export interface RoomSettingsUpdate {
+  skipThreshold: number;
+}
+
+export interface LibrarySharedPayload {
+  userId: string;
+  username: string;
+  library: Song[];
+}
+
+export interface PlaylistRecommendedPayload {
+  userId: string;
+  username: string;
+  reason: string;
+  library: Song[];
+}
+
+export interface HostTransferPayload {
+  roomCode: string;
+  newHostId: string;
+}
+
+export interface HostTransferredPayload {
+  newHostId: string;
+  newHostUsername: string;
+}
+
+export interface TopVoter {
+  userId: string;
+  username: string;
+  voteScore: number;
+}
+
+export interface TopVotersPayload {
+  topVoters: TopVoter[];
+}
+
+// WebSocket event name constants
 // WebSocket event name constants
 export const SocketEvents = {
   // Client → Server
@@ -68,6 +111,9 @@ export const SocketEvents = {
   SONG_NEXT: 'song:next',
   SONG_PREV: 'song:prev',
   HOST_ACTION: 'host:action',
+  ROOM_SETTINGS_UPDATE: 'room:settings-update',
+  HOST_TRANSFER: 'host:transfer',
+  HOST_RETRACT: 'host:retract',
 
   // Server → Client
   QUEUE_UPDATE: 'queue:update',
@@ -75,4 +121,8 @@ export const SocketEvents = {
   HOST_UPDATE: 'host:update',
   SONG_SKIP: 'song:skip',
   ROOM_STATS: 'room:stats',
+  LIBRARY_SHARED: 'library:shared',
+  PLAYLIST_RECOMMENDED: 'playlist:recommended',
+  HOST_TRANSFERRED: 'host:transferred',
+  TOP_VOTERS_UPDATE: 'top-voters:update',
 } as const;
