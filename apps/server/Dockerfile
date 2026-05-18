@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/server/package*.json ./apps/server/
 COPY packages/types/package*.json ./packages/types/
-RUN npm ci --workspace=apps/server --workspace=packages/types
+RUN npm ci --workspace=apps/server --workspace=packages/types --ignore-scripts
 
 # Copy source
 COPY apps/server ./apps/server
