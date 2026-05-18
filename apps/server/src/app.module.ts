@@ -5,6 +5,8 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { QueueModule } from './queue/queue.module';
+import { SpotifyModule } from './spotify/spotify.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { QueueModule } from './queue/queue.module';
     PrismaModule,
     RoomsModule,
     QueueModule,
+    SpotifyModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -50,12 +50,12 @@ export default function HomePage() {
 
       if (!res.ok) throw new Error('Failed to create room');
       const room = await res.json();
-      router.push(`/room/${room.roomCode}?host=true`);
+      router.push(`/host/${room.roomCode}`);
     } catch {
       // Fallback: generate code client-side if server unavailable
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-      router.push(`/room/${code}?host=true`);
+      router.push(`/host/${code}`);
     } finally {
       setIsCreating(false);
     }

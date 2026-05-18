@@ -8,6 +8,8 @@ export interface Song {
   artist: string;
   albumArt: string;
   score: number;
+  /** iTunes 30-second preview URL */
+  previewUrl?: string;
   /** BPM metadata from Spotify (optional, enriched when available) */
   bpm?: number;
 }
@@ -39,9 +41,21 @@ export interface VibeUpdate {
   vibeLabel: string;
 }
 
+export interface HostActionPayload {
+  roomCode: string;
+  trackId: string;
+  action: 'pin' | 'remove';
+}
+
+export interface AiSuggestion {
+  message: string;
+  isPositive: boolean;
+}
+
 export interface QueueUpdate {
   roomCode: string;
   queue: Song[];
+  aiSuggestion?: AiSuggestion | null;
 }
 
 // WebSocket event name constants
@@ -51,6 +65,9 @@ export const SocketEvents = {
   ROOM_LEAVE: 'room:leave',
   SONG_ADD: 'song:add',
   SONG_VOTE: 'song:vote',
+  SONG_NEXT: 'song:next',
+  SONG_PREV: 'song:prev',
+  HOST_ACTION: 'host:action',
 
   // Server → Client
   QUEUE_UPDATE: 'queue:update',
