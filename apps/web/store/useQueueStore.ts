@@ -26,6 +26,7 @@ interface QueueStore {
   vibe: VibeUpdate | null;
   roomStats: RoomStats | null;
   aiSuggestion: AiSuggestion | null;
+  lastSkippedSong: Song | null;
 
   // Actions
   connect: (roomCode: string, isHost?: boolean) => void;
@@ -47,6 +48,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   vibe: null,
   roomStats: null,
   aiSuggestion: null,
+  lastSkippedSong: null,
 
   connect: (roomCode, isHost = false) => {
     const existing = get().socket;
@@ -77,6 +79,12 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 
     socket.on(SocketEvents.SONG_SKIP, ({ song }: { song: Song }) => {
       console.log(`[WS] Song auto-skipped: ${song.title}`);
+      set({ lastSkippedSong: song });
+      setTimeout(() => {
+        if (get().lastSkippedSong?.id === song.id) {
+          set({ lastSkippedSong: null });
+        }
+      }, 4500);
     });
 
     set({ socket, roomCode });
@@ -85,7 +93,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   disconnect: () => {
     const { socket } = get();
     if (socket) socket.disconnect();
-    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null });
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null, lastSkippedSong: null });
   },
 
   addSong: (song) => {

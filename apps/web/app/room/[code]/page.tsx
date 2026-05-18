@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, ChevronUp, ChevronDown, Plus,
-  Music2, Users, Copy, Check, WifiOff, Zap, X, Clock, Sparkles, LogOut,
+  Music2, Users, Copy, Check, WifiOff, Zap, X, Clock, Sparkles, LogOut, AlertTriangle,
 } from 'lucide-react';
 import { useQueueStore } from '../../../store/useQueueStore';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { GeometricWebBackground } from '../../../components/GeometricWebBackground';
 import type { Song } from '@repo/types';
 
 // ── API Helpers ──────────────────────────────────────────────────
@@ -75,6 +76,7 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   const connected = useQueueStore(s => s.connected);
   const addSong = useQueueStore(s => s.addSong);
   const voteSong = useQueueStore(s => s.voteSong);
+  const lastSkippedSong = useQueueStore(s => s.lastSkippedSong);
 
   // ── Search State ───────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,7 +204,9 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   const showDropdown = searchFocused && (searchResults.length > 0 || searchQuery === '');
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-black relative overflow-hidden">
+      {/* Full-screen Background Image */}
+      <div className="absolute inset-0 -z-50 bg-cover bg-center opacity-[0.35] pointer-events-none" style={{ backgroundImage: "url('/images/bg-guest.jpg')" }} />
 
       {/* ── Top Bar ──────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 glass border-b border-white/5 px-4 py-3">
@@ -522,6 +526,25 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
           </div>
         </div>
       </main>
+      <AnimatePresence>
+        {lastSkippedSong && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[9999] bg-black/90 border-2 border-red-500/80 rounded-2xl p-4 flex items-center gap-4 max-w-sm shadow-[0_0_30px_rgba(239,68,68,0.3)] backdrop-blur-md"
+          >
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0 animate-bounce">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-red-400 font-mono tracking-widest uppercase font-bold">Vibe Check Failed</p>
+              <p className="text-sm font-bold text-white truncate">{lastSkippedSong.title}</p>
+              <p className="text-xs text-zinc-400 truncate">Voted off the queue by the crowd</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
