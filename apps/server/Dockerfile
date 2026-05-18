@@ -15,7 +15,7 @@ COPY packages/types ./packages/types
 # Generate Prisma client & build
 WORKDIR /app/apps/server
 RUN npx prisma generate
-RUN npm run build
+RUN npm run build 2>&1 || (echo "Build failed with exit code $?"; ls -la; exit 1)
 
 # ── Stage 2: Runner ──────────────────────────────────────────
 FROM node:20-alpine AS runner
