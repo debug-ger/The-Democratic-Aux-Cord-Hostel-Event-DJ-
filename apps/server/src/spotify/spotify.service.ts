@@ -7,6 +7,7 @@ export class SpotifyService {
   private readonly logger = new Logger(SpotifyService.name);
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
+  private genreCache = new Map<string, { timestamp: number; songs: Song[] }>();
 
   constructor(private configService: ConfigService) {}
 
@@ -139,6 +140,57 @@ export class SpotifyService {
       return songs;
     } catch (error) {
       this.logger.error('Spotify recommendations error', error);
+      return [];
+    }
+  }
+
+  async getGenreRecommendations(genre: string, limit: number = 20): Promise<Song[]> {
+    const cacheKey = `${genre}-${limit}`;
+    const cached = this.genreCache.get(cacheKey);
+    // 5 minute cache
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.songs;
+    }
+
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/recommendations?seed_genres=${encodeURIComponent(genre)}&limit=${limit}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch genre recommendations');
+
+      const data = await response.json();
+      const songs: Song[] = (data.tracks ?? []).map((track: any) => ({
+        id: track.id,
+        title: track.name,
+        artist: track.artists.map((a: any) => a.name).join(', '),
+        albumArt: track.album.images[0]?.url || '',
+        previewUrl: track.preview_url,
+        score: 0,
+      }));
+
+      // iTunes fallback for genre recommendations
+      await Promise.all(
+        songs.map(async (song) => {
+          if (!song.previewUrl) {
+            try {
+              const fallbackResults = await this.searchItunesMock(`${song.title} ${song.artist}`);
+              if (fallbackResults && fallbackResults[0]?.previewUrl) {
+                song.previewUrl = fallbackResults[0].previewUrl;
+              }
+            } catch {}
+          }
+        })
+      );
+
+      this.genreCache.set(cacheKey, { timestamp: Date.now(), songs });
+      return songs;
+    } catch (error) {
+      this.logger.error('Spotify genre recommendations error', error);
       return [];
     }
   }

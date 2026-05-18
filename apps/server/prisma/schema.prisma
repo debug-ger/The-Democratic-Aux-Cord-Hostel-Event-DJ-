@@ -26,9 +26,10 @@ model Room {
   host      User      @relation("HostRooms", fields: [hostId], references: [id])
   queues    Queue[]
   sessions  Session[]
-  playback  Playback?
-  analytics Analytics?
-  createdAt DateTime  @default(now())
+  playback      Playback?
+  analytics     Analytics?
+  skipThreshold Int       @default(-3)
+  createdAt     DateTime  @default(now())
 }
 
 model Queue {
@@ -42,6 +43,7 @@ model Queue {
   score     Int      @default(0)
   votes     Vote[]
   position  Int      @default(0)
+  userId    String?  // The user who added the song
   createdAt DateTime @default(now())
 
   @@index([roomId, score])
@@ -84,4 +86,18 @@ model Analytics {
   bpmAverage Float    @default(0)
   vibeScore  Float    @default(0)
   updatedAt  DateTime @updatedAt
+}
+
+model Library {
+  id             String   @id @default(uuid())
+  userId         String   
+  spotifyTrackId String
+  title          String
+  artist         String
+  albumArt       String
+  durationMs     Int?
+  previewUrl     String?
+  addedAt        DateTime @default(now())
+
+  @@unique([userId, spotifyTrackId])
 }

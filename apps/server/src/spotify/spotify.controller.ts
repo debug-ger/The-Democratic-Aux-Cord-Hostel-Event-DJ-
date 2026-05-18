@@ -18,4 +18,11 @@ export class SpotifyController {
     const seedTrackIds = seeds.split(',').filter(Boolean);
     return this.spotifyService.getRecommendations(seedTrackIds);
   }
+
+  @Get('genre-recommendations')
+  async genreRecommendations(@Query('genre') genre: string, @Query('limit') limit?: string): Promise<Song[]> {
+    if (!genre) return [];
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.spotifyService.getGenreRecommendations(genre, limitNum);
+  }
 }

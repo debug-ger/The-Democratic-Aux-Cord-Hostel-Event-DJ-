@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, ChevronUp, ChevronDown, Plus,
-  Music2, Users, Copy, Check, WifiOff, Zap, X, Clock, Sparkles, LogOut,
+  Music2, Users, Copy, Check, WifiOff, Zap, X, Clock, Sparkles, LogOut, AlertTriangle,
 } from 'lucide-react';
 import { useQueueStore } from '../../../store/useQueueStore';
 import { Button } from '../../../components/ui/button';
@@ -48,6 +48,8 @@ const vibeLabelColor: Record<string, string> = {
   Chill: 'text-cyan-400',
 };
 
+const POPULAR_GENRES = ['pop', 'hip-hop', 'edm', 'rock', 'r-n-b', 'indie', 'chill'];
+
 const LS_HISTORY_KEY = 'vb_search_history';
 const LS_SEEDS_KEY = 'vb_seed_tracks';
 
@@ -75,6 +77,8 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   const connected = useQueueStore(s => s.connected);
   const addSong = useQueueStore(s => s.addSong);
   const voteSong = useQueueStore(s => s.voteSong);
+  const skipThreshold = useQueueStore(s => s.skipThreshold);
+  const recommendedPlaylist = useQueueStore(s => s.recommendedPlaylist);
 
   // ── Search State ───────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,6 +89,8 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   // ── Search History & Recommendations ──────────────────────────
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [recommendations, setRecommendations] = useState<Song[]>([]);
+  const [genreRecs, setGenreRecs] = useState<Song[]>([]);
+  const [library, setLibrary] = useState<Song[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
   const [seedTrackIds, setSeedTrackIds] = useState<string[]>([]);
 
@@ -156,6 +162,30 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
     }
   }, [searchQuery]);
 
+  const handleGenreClick = async (genre: string) => {
+    setIsSearching(true);
+    try {
+      const res = await fetch(`${API}/spotify/genre-recommendations?genre=${genre}&limit=10`);
+      if (res.ok) setGenreRecs(await res.json());
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const fetchLibrary = async () => {
+    const res = await fetch(`${API}/library?userId=demo-user-123`);
+    if (res.ok) setLibrary(await res.json());
+  };
+
+  const saveToLibrary = async (track: Song) => {
+    await fetch(`${API}/library`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'demo-user-123', trackId: track.id, title: track.title, artist: track.artist, albumArt: track.albumArt, previewUrl: track.previewUrl }),
+    });
+    await fetchLibrary();
+  };
+
   const handleAddSong = useCallback((track: Song) => {
     addSong(track);
     setSearchQuery('');
@@ -199,7 +229,7 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   const upNext = safeQueue.slice(1);
   const vibeLabel = vibe?.vibeLabel ?? 'Chill';
   const vibeScore = vibe?.vibeScore ?? 50;
-  const showDropdown = searchFocused && (searchResults.length > 0 || searchQuery === '');
+  const showDropdown = searchFocused;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -263,6 +293,47 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
       {/* ── Main Content ─────────────────────────────────────── */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 flex flex-col gap-6">
 
+        {/* ── Threshold & Top Voter Banners ── */}
+        <div className="flex flex-col gap-2 w-full">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] px-3 py-1.5 rounded-lg flex items-center justify-center font-mono uppercase tracking-widest gap-2">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Songs are auto-skipped at {skipThreshold} votes
+          </div>
+
+          <AnimatePresence>
+            {recommendedPlaylist && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-purple-500/10 border border-purple-500/20 text-purple-400 p-3 rounded-lg overflow-hidden"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-xs uppercase font-bold tracking-wider">Top Voter Recommendation: {recommendedPlaylist.username}</span>
+                </div>
+                <div className="flex overflow-x-auto pb-2 gap-3 snap-x">
+                  {recommendedPlaylist.library.map(song => (
+                    <button 
+                      key={song.id} 
+                      onClick={() => handleAddSong(song)}
+                      className="snap-start flex-shrink-0 w-24 flex flex-col items-center gap-1 group text-left"
+                    >
+                      <div className="relative">
+                        <img src={song.albumArt} alt={song.title} className="w-20 h-20 rounded-lg object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                          <Plus className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-white truncate w-full text-center">{song.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* ── Vibe Bar (full-width always) ── */}
         {vibe && (
           <motion.div
@@ -297,10 +368,11 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
         {/* ── Responsive 2-column grid on md+, stacked on mobile ── */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
 
-          {/* RIGHT / SEARCH SIDE — shown first on mobile via order */}
+          {/* RIGHT / SEARCH SIDE */}
           <div className="order-1 md:order-2 md:col-span-7 flex flex-col gap-4">
 
-            {/* Search Console */}
+            {/* Search Console (always visible) */}
+            {(true) && (
             <div ref={searchRef} className="relative">
               <form onSubmit={handleSearch} className="flex gap-2">
                 <div className="relative flex-1">
@@ -391,48 +463,86 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
                           </div>
                         )}
 
+                        {/* Genre chips inside dropdown */}
                         <div>
-                          <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
+                          <div className="flex items-center gap-1.5 px-4 pt-3 pb-2">
                             <Sparkles className="w-3 h-3 text-pink-400" />
-                            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">
-                              {seedTrackIds.length > 0 ? 'Recommended for You' : 'Popular Right Now'}
-                            </span>
+                            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Browse by Genre</span>
                           </div>
-                          {isLoadingRecs ? (
-                            <div className="flex justify-center py-4">
-                              <motion.div
-                                className="w-5 h-5 border-2 border-pink-500/30 border-t-pink-500 rounded-full"
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                              />
+                          <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                            {POPULAR_GENRES.map(g => (
+                              <button key={g} onClick={() => handleGenreClick(g)}
+                                className="px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-zinc-300 text-[10px] uppercase tracking-wider hover:bg-pink-500/20 hover:border-pink-500/30 hover:text-pink-300 transition-all">
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                          {isSearching && (
+                            <div className="flex justify-center py-3"><motion.div className="w-4 h-4 border-2 border-pink-500/30 border-t-pink-500 rounded-full" animate={{rotate:360}} transition={{duration:0.8,repeat:Infinity,ease:'linear'}} /></div>
+                          )}
+                          {genreRecs.length > 0 && !isSearching && (
+                            <div className="border-t border-white/5">
+                              {genreRecs.map(track => (
+                                <motion.button key={track.id} whileHover={{backgroundColor:'rgba(255,0,127,0.06)'}}
+                                  onClick={() => handleAddSong(track)}
+                                  className="flex items-center gap-3 w-full p-3 text-left border-b border-white/5 last:border-0">
+                                  <img src={track.albumArt} alt={track.title} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white text-sm font-semibold truncate">{track.title}</p>
+                                    <p className="text-zinc-400 text-xs truncate">{track.artist}</p>
+                                  </div>
+                                  <Plus className="w-4 h-4 text-pink-500 flex-shrink-0" />
+                                </motion.button>
+                              ))}
                             </div>
-                          ) : recommendations.length > 0 ? (
-                            recommendations.map((track) => (
-                              <motion.button
-                                key={track.id}
-                                whileHover={{ backgroundColor: 'rgba(255,0,127,0.06)' }}
-                                onClick={() => handleAddSong(track)}
-                                className="flex items-center gap-3 w-full p-3 text-left border-b border-white/5 last:border-0"
-                              >
-                                <img src={track.albumArt} alt={track.title} className="w-11 h-11 rounded-lg object-cover flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-white text-sm font-semibold truncate">{track.title}</p>
-                                  <p className="text-zinc-400 text-xs truncate">{track.artist}</p>
-                                </div>
-                                <Plus className="w-4 h-4 text-pink-500 flex-shrink-0" />
-                              </motion.button>
-                            ))
-                          ) : seedTrackIds.length === 0 ? (
-                            <p className="text-zinc-600 text-sm text-center py-4 px-4">
-                              Add a song to get personalized recommendations!
-                            </p>
-                          ) : null}
+                          )}
+                          {!isSearching && genreRecs.length === 0 && (
+                            <p className="text-zinc-600 text-[11px] text-center pb-3">Tap a genre to load trending songs</p>
+                          )}
                         </div>
                       </>
                     )}
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+            )}
+
+            {/* My Library Panel */}
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs uppercase tracking-widest text-zinc-500 font-bold flex items-center gap-1.5"><Sparkles className="w-3 h-3 text-purple-400" /> My Library</h3>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={fetchLibrary} className="bg-white/5 border-white/10 text-zinc-400 hover:text-white text-xs h-7">Refresh</Button>
+                  <Button size="sm" className="bg-purple-500 hover:bg-purple-600 text-white text-xs h-7">Share to Room</Button>
+                </div>
+              </div>
+              {/* Search-to-save: use search results to save */}
+              {searchResults.length > 0 && (
+                <div className="mb-3 p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                  <p className="text-[10px] text-purple-400 uppercase tracking-wider mb-2 font-bold">Save from search results:</p>
+                  {searchResults.slice(0,3).map(track => (
+                    <div key={track.id} className="flex items-center gap-2 py-1">
+                      <img src={track.albumArt} alt={track.title} className="w-8 h-8 rounded object-cover" />
+                      <div className="flex-1 min-w-0"><p className="text-white text-xs font-semibold truncate">{track.title}</p></div>
+                      <button onClick={() => saveToLibrary(track)} className="text-purple-400 hover:text-purple-300 text-[10px] border border-purple-500/30 rounded-lg px-2 py-0.5 hover:bg-purple-500/10">Save</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {library.length > 0 ? (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {library.map(track => (
+                    <div key={track.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5">
+                      <img src={track.albumArt} alt={track.title} className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                      <div className="flex-1 min-w-0"><p className="text-white text-xs font-semibold truncate">{track.title}</p><p className="text-zinc-500 text-[10px] truncate">{track.artist}</p></div>
+                      <button onClick={() => handleAddSong(track)} className="text-cyan-400 hover:text-cyan-300 flex-shrink-0"><Plus className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-zinc-600 text-xs text-center py-2">Search songs above, then save them to your library.</p>
+              )}
             </div>
 
             <div className="hidden md:block glass rounded-2xl p-4 border border-white/5 text-center text-xs text-zinc-500">

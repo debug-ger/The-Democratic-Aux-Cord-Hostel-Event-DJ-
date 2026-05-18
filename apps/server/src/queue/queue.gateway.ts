@@ -11,9 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { SocketEvents } from '@repo/types';
 import type { Song, AiSuggestion } from '@repo/types';
 import { AiService } from '../ai/ai.service';
-
-// Auto-skip threshold
-const SKIP_THRESHOLD = -3;
+import { PrismaService } from '../prisma/prisma.service';
 
 interface RoomState {
   queue: Song[];
@@ -21,6 +19,8 @@ interface RoomState {
   hostSocketId: string | null;
   members: Set<string>;
   lastAiSuggestion?: AiSuggestion | null;
+  skipThreshold: number;
+  topVoterId?: string | null;
 }
 
 @WebSocketGateway({
@@ -34,7 +34,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private rooms = new Map<string, RoomState>();
   private socketRoomMap = new Map<string, string>();
 
-  constructor(private aiService: AiService) {}
+  constructor(private aiService: AiService, private prisma: PrismaService) {}
 
   // ── Lifecycle ─────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // ── Client → Server Events ────────────────────────────────────
 
   @SubscribeMessage(SocketEvents.ROOM_JOIN)
-  handleJoinRoom(
+  async handleJoinRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { roomCode: string; isHost?: boolean },
   ) {
@@ -69,11 +69,15 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.socketRoomMap.set(client.id, code);
 
     if (!this.rooms.has(code)) {
+      const dbRoom = await this.prisma.room.findUnique({ where: { roomCode: code } });
+      const threshold = dbRoom?.skipThreshold ?? -3;
+
       this.rooms.set(code, {
         queue: [],
         history: [],
         hostSocketId: isHost ? client.id : null,
         members: new Set(),
+        skipThreshold: threshold,
       });
     }
 
@@ -117,7 +121,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const exists = room.queue.some((s) => s.id === payload.song.id);
     if (!exists) {
-      room.queue.push({ ...payload.song, score: 0 });
+      room.queue.push({ ...payload.song, score: 0, userId: payload.userId });
       this.broadcastQueueWithAi(code, room);
       this.broadcastVibeUpdate(code, room.queue);
     }
@@ -137,7 +141,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     room.queue[songIndex].score += payload.delta;
 
-    if (room.queue[songIndex].score <= SKIP_THRESHOLD) {
+    if (room.queue[songIndex].score <= room.skipThreshold) {
       const skipped = room.queue.splice(songIndex, 1)[0];
       this.server.to(code).emit(SocketEvents.SONG_SKIP, { song: skipped, reason: 'vote-threshold' });
       console.log(`[WS] Auto-skipped "${skipped.title}" in room ${code}`);
@@ -147,6 +151,47 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.broadcastQueueWithAi(code, room);
     this.broadcastVibeUpdate(code, room.queue);
+
+    // Feature 3: Top Voter Logic
+    const userScores = new Map<string, number>();
+    for (const song of room.queue) {
+      if (song.userId && song.score > 0) {
+        userScores.set(song.userId, (userScores.get(song.userId) || 0) + song.score);
+      }
+    }
+    
+    let topUserId: string | null = null;
+    let maxScore = 0;
+    for (const [uid, score] of userScores.entries()) {
+      if (score > maxScore) {
+        maxScore = score;
+        topUserId = uid;
+      }
+    }
+
+    if (topUserId && topUserId !== room.topVoterId) {
+      room.topVoterId = topUserId;
+      this.emitTopVoterRecommendation(code, topUserId);
+    }
+
+    // Emit top-3 voters for host control transfer UI
+    const top3 = [...userScores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const topVotersPayload = await Promise.all(
+      top3.map(async ([uid, score]) => {
+        let username = `User-${uid.slice(0, 4)}`;
+        try {
+          const u = await this.prisma.user.findUnique({ where: { id: uid } });
+          if (u) username = u.username;
+        } catch {}
+        return { userId: uid, username, voteScore: score };
+      })
+    );
+    // Only emit to host socket
+    if (room.hostSocketId) {
+      this.server.to(room.hostSocketId).emit(SocketEvents.TOP_VOTERS_UPDATE, { topVoters: topVotersPayload });
+    }
   }
 
   @SubscribeMessage(SocketEvents.SONG_NEXT)
@@ -214,6 +259,71 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.broadcastVibeUpdate(code, room.queue);
   }
 
+  @SubscribeMessage(SocketEvents.ROOM_SETTINGS_UPDATE)
+  async handleSettingsUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomCode: string; skipThreshold: number },
+  ) {
+    const code = payload.roomCode.toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room || room.hostSocketId !== client.id) return;
+
+    room.skipThreshold = payload.skipThreshold;
+    await this.prisma.room.update({
+      where: { roomCode: code },
+      data: { skipThreshold: payload.skipThreshold },
+    });
+
+    this.server.to(code).emit(SocketEvents.ROOM_SETTINGS_UPDATE, { skipThreshold: payload.skipThreshold });
+  }
+
+  @SubscribeMessage(SocketEvents.HOST_TRANSFER)
+  async handleHostTransfer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomCode: string; newHostId: string },
+  ) {
+    const code = payload.roomCode.toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room || room.hostSocketId !== client.id) return;
+
+    const prevHostSocketId = room.hostSocketId;
+    room.hostSocketId = null; // relinquish control
+
+    // Find the socket ID matching newHostId (best-effort: match by userId metadata if set)
+    // For now, broadcast event; new host must re-join as host or accept control from client-side
+    let newHostUsername = `User-${payload.newHostId.slice(0, 4)}`;
+    try {
+      const u = await this.prisma.user.findUnique({ where: { id: payload.newHostId } });
+      if (u) newHostUsername = u.username;
+    } catch {}
+    
+    this.server.to(code).emit(SocketEvents.HOST_TRANSFERRED, { 
+      newHostId: payload.newHostId, 
+      newHostUsername,
+      previousHostSocketId: prevHostSocketId,
+    });
+  }
+
+  @SubscribeMessage(SocketEvents.HOST_RETRACT)
+  async handleHostRetract(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomCode: string },
+  ) {
+    const code = payload.roomCode.toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) return;
+
+    // Reclaim host — only allow if no host currently
+    if (!room.hostSocketId) {
+      room.hostSocketId = client.id;
+      this.server.to(code).emit(SocketEvents.HOST_TRANSFERRED, {
+        newHostId: client.id,
+        newHostUsername: 'Original Host',
+        previousHostSocketId: null,
+      });
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────
 
   private async broadcastQueueWithAi(roomCode: string, room: RoomState) {
@@ -263,5 +373,35 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(roomCode).emit(SocketEvents.ROOM_STATS, {
       memberCount: room.members.size,
     });
+  }
+
+  private async emitTopVoterRecommendation(roomCode: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+
+    const library = await this.prisma.library.findMany({
+      where: { userId },
+      orderBy: { addedAt: 'desc' },
+      take: 20
+    });
+
+    const librarySongs: Song[] = library.map(l => ({
+      id: l.spotifyTrackId,
+      title: l.title,
+      artist: l.artist,
+      albumArt: l.albumArt,
+      score: 0,
+      previewUrl: l.previewUrl ?? undefined,
+      userId: l.userId
+    }));
+
+    if (librarySongs.length > 0) {
+      this.server.to(roomCode).emit(SocketEvents.PLAYLIST_RECOMMENDED, {
+        userId: user.id,
+        username: user.username,
+        reason: 'top-voted',
+        library: librarySongs
+      });
+    }
   }
 }

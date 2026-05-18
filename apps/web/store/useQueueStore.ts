@@ -9,6 +9,12 @@ import {
   HostActionPayload,
   AiSuggestion,
   QueueUpdate,
+  RoomSettingsUpdate,
+  LibrarySharedPayload,
+  PlaylistRecommendedPayload,
+  HostTransferredPayload,
+  TopVoter,
+  TopVotersPayload,
 } from '@repo/types';
 
 interface RoomStats {
@@ -26,6 +32,11 @@ interface QueueStore {
   vibe: VibeUpdate | null;
   roomStats: RoomStats | null;
   aiSuggestion: AiSuggestion | null;
+  skipThreshold: number;
+  sharedLibrary: LibrarySharedPayload | null;
+  recommendedPlaylist: PlaylistRecommendedPayload | null;
+  topVoters: TopVoter[];
+  isHost: boolean;
 
   // Actions
   connect: (roomCode: string, isHost?: boolean) => void;
@@ -35,6 +46,9 @@ interface QueueStore {
   nextSong: () => void;
   prevSong: () => void;
   hostAction: (action: 'pin' | 'remove', trackId: string) => void;
+  updateSkipThreshold: (threshold: number) => void;
+  transferHost: (newHostId: string) => void;
+  retractHost: () => void;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001';
@@ -47,6 +61,11 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   vibe: null,
   roomStats: null,
   aiSuggestion: null,
+  skipThreshold: -3,
+  sharedLibrary: null,
+  recommendedPlaylist: null,
+  topVoters: [],
+  isHost: false,
 
   connect: (roomCode, isHost = false) => {
     const existing = get().socket;
@@ -55,7 +74,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const socket = io(WS_URL, { transports: ['websocket', 'polling'] });
 
     socket.on('connect', () => {
-      set({ connected: true });
+      set({ connected: true, isHost });
       socket.emit(SocketEvents.ROOM_JOIN, { roomCode, isHost });
     });
 
@@ -79,13 +98,21 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       console.log(`[WS] Song auto-skipped: ${song.title}`);
     });
 
+    socket.on(SocketEvents.ROOM_SETTINGS_UPDATE, (data: RoomSettingsUpdate) => set({ skipThreshold: data.skipThreshold }));
+    socket.on(SocketEvents.LIBRARY_SHARED, (data: LibrarySharedPayload) => set({ sharedLibrary: data }));
+    socket.on(SocketEvents.PLAYLIST_RECOMMENDED, (data: PlaylistRecommendedPayload) => set({ recommendedPlaylist: data }));
+    socket.on(SocketEvents.TOP_VOTERS_UPDATE, (data: TopVotersPayload) => set({ topVoters: data.topVoters }));
+    socket.on(SocketEvents.HOST_TRANSFERRED, (_data: HostTransferredPayload) => {
+      // handled in component
+    });
+
     set({ socket, roomCode });
   },
 
   disconnect: () => {
     const { socket } = get();
     if (socket) socket.disconnect();
-    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null });
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null, sharedLibrary: null, recommendedPlaylist: null, topVoters: [], isHost: false });
   },
 
   addSong: (song) => {
@@ -117,5 +144,25 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     if (!socket || !roomCode) return;
     const payload: HostActionPayload = { roomCode, trackId, action };
     socket.emit(SocketEvents.HOST_ACTION, payload);
+  },
+
+  updateSkipThreshold: (skipThreshold) => {
+    const { socket, roomCode } = get();
+    if (!socket || !roomCode) return;
+    socket.emit(SocketEvents.ROOM_SETTINGS_UPDATE, { roomCode, skipThreshold });
+  },
+
+  transferHost: (newHostId) => {
+    const { socket, roomCode } = get();
+    if (!socket || !roomCode) return;
+    socket.emit(SocketEvents.HOST_TRANSFER, { roomCode, newHostId });
+    set({ isHost: false });
+  },
+
+  retractHost: () => {
+    const { socket, roomCode } = get();
+    if (!socket || !roomCode) return;
+    socket.emit(SocketEvents.HOST_RETRACT, { roomCode });
+    set({ isHost: true });
   },
 }));
