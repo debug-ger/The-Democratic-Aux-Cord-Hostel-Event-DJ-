@@ -194,7 +194,11 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
                             className={`w-1 rounded-full ${isPlaying ? 'bg-cyan-400' : 'bg-zinc-700'}`}
                             style={{
                               height: isPlaying ? `${10 + i * 3}px` : '3px',
-                              animation: isPlaying ? 'equalizer 1.2s ease-in-out infinite alternate' : 'none',
+                              animationName: isPlaying ? 'equalizer' : 'none',
+                              animationDuration: '1.2s',
+                              animationTimingFunction: 'ease-in-out',
+                              animationIterationCount: 'infinite',
+                              animationDirection: 'alternate',
                               animationDelay: `${i * 0.15}s`,
                             }}
                           />
