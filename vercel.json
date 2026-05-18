@@ -1,8 +1,6 @@
 {
-  "name": "vibebox",
   "buildCommand": "npm install && cd apps/web && npx next build",
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "rootDirectory": ""
+  "framework": "nextjs"
 }
