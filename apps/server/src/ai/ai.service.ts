@@ -60,12 +60,24 @@ export class AiService {
 
   // ── Mock Fallback ─────────────────────────────────────────────────────────
   private mockVibeTransition(queue: Song[]): AiSuggestion {
-    const top2 = queue.slice(0, 2);
-    const avgScore = (top2[0].score + top2[1].score) / 2;
+    if (!queue || queue.length === 0) {
+      return { message: "Queue is empty. Add songs to build the vibe!", isPositive: true };
+    }
+    if (queue.length === 1) {
+      return { message: "Single track playing. Add another song to prepare a smooth transition!", isPositive: true };
+    }
+    const first = queue[0];
+    const second = queue[1];
+    if (!first || !second) {
+      return { message: "Smooth transition ahead. The vibe remains steady.", isPositive: true };
+    }
+    const score1 = first.score ?? 0;
+    const score2 = second.score ?? 0;
+    const avgScore = (score1 + score2) / 2;
 
     if (avgScore > 2) {
       return { message: "The crowd loves this sequence! Energy is peaking.", isPositive: true };
-    } else if (Math.abs(top2[0].score - top2[1].score) > 3) {
+    } else if (Math.abs(score1 - score2) > 3) {
       return { message: "Warning: Potential vibe clash detected in the next transition.", isPositive: false };
     } else {
       return { message: "Smooth transition ahead. The vibe remains steady.", isPositive: true };
