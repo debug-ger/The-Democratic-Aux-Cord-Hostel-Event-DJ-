@@ -128,7 +128,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage(SocketEvents.SONG_VOTE)
-  handleVote(
+  async handleVote(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: any,
   ) {
