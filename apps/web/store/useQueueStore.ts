@@ -9,7 +9,13 @@ import {
   HostActionPayload,
   AiSuggestion,
   QueueUpdate,
-} from '@repo/types';
+  RoomSettingsUpdate,
+  LibrarySharedPayload,
+  PlaylistRecommendedPayload,
+  HostTransferredPayload,
+  TopVoter,
+  TopVotersPayload,
+} from '../lib/types';
 
 interface RoomStats {
   memberCount: number;

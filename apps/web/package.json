@@ -10,8 +10,6 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/types": "*",
-    "@repo/ui": "*",
     "autoprefixer": "^10.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -27,8 +25,6 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

@@ -12,7 +12,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
 import { GeometricWebBackground } from '../../../components/GeometricWebBackground';
-import type { Song } from '@repo/types';
+import type { Song } from '../../../lib/types';
 
 // ── API Helpers ──────────────────────────────────────────────────
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, SkipForward, SkipBack, Activity, Zap, Users, AlertTriangle, Sparkles, QrCode, Award } from 'lucide-react';
-import type { Song } from '@repo/types';
+import type { Song } from '../../../lib/types';
 import { useQueueStore } from '../../../store/useQueueStore';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
