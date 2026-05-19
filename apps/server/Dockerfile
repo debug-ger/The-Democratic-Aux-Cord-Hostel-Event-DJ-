@@ -1,6 +1,7 @@
 # ── Stage 1: Builder ─────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG CACHE_BUST=1
 
 # Install dependencies
 COPY package*.json ./
