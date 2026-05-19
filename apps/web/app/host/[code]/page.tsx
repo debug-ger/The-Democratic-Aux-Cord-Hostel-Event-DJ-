@@ -195,6 +195,8 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
   const lastSkippedSong = useQueueStore(s => s.lastSkippedSong);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Pure-frontend QR Flyer & Vibe Savior Session Recap states
@@ -237,12 +239,20 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
         audio.dataset.playingId = nowPlaying.id;
         audio.src = nowPlaying.previewUrl!;
         audio.load();
-        audio.play()
-          .then(() => setIsPlaying(true))
-          .catch(e => {
-            console.warn('[Host Audio] Autoplay prevented:', e.message);
-            setIsPlaying(false);
-          });
+        
+        if (isAudioUnlocked) {
+          audio.play()
+            .then(() => {
+              setIsPlaying(true);
+              setAudioError(null);
+            })
+            .catch(e => {
+              console.warn('[Host Audio] Autoplay prevented:', e.message);
+              setIsPlaying(false);
+            });
+        } else {
+          setIsPlaying(false);
+        }
       }
     } else if (nowPlaying) {
       console.warn(`[Host Audio] No preview URL for: ${nowPlaying.title}`);
@@ -258,11 +268,15 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
       delete audio.dataset.playingId;
       setIsPlaying(false);
     }
-  }, [nowPlayingId]);
+  }, [nowPlayingId, isAudioUnlocked]);
 
   const togglePlayback = () => {
     const audio = audioRef.current;
     if (!audio || !nowPlaying) return;
+
+    if (!isAudioUnlocked) {
+      setIsAudioUnlocked(true);
+    }
 
     const hasValidPreview = nowPlaying.previewUrl &&
       (nowPlaying.previewUrl.startsWith('http://') || nowPlaying.previewUrl.startsWith('https://'));
@@ -278,9 +292,37 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
           audio.load();
         }
         audio.play()
-          .then(() => setIsPlaying(true))
+          .then(() => {
+            setIsPlaying(true);
+            setAudioError(null);
+          })
           .catch(e => {
             console.warn('[Host Audio] Play failed:', e.message);
+            setAudioError('Playback failed. Please try again.');
+            setIsPlaying(false);
+          });
+      }
+    }
+  };
+
+  const handleUnlockAudio = () => {
+    setIsAudioUnlocked(true);
+    const audio = audioRef.current;
+    if (audio && nowPlaying) {
+      const hasValidPreview = nowPlaying.previewUrl &&
+        (nowPlaying.previewUrl.startsWith('http://') || nowPlaying.previewUrl.startsWith('https://'));
+      if (hasValidPreview) {
+        audio.dataset.playingId = nowPlaying.id;
+        audio.src = nowPlaying.previewUrl!;
+        audio.load();
+        audio.play()
+          .then(() => {
+            setIsPlaying(true);
+            setAudioError(null);
+          })
+          .catch(e => {
+            console.error('[Host Audio] Unlock play failed:', e);
+            setAudioError('Unlock failed: check your audio permissions.');
             setIsPlaying(false);
           });
       }
@@ -326,8 +368,32 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
       {/* Full-screen Background Image */}
       <div className="absolute inset-0 -z-50 bg-cover bg-center opacity-[0.28] pointer-events-none" style={{ backgroundImage: "url('/images/bg-host.jpg')" }} />
 
-      {/* Hidden audio element */}
-      <audio ref={audioRef} onEnded={handleEnded} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
+      {/* Hidden audio element with error tracking and CORS attributes */}
+      <audio
+        ref={audioRef}
+        crossOrigin="anonymous"
+        preload="auto"
+        onEnded={handleEnded}
+        onPlay={() => {
+          setIsPlaying(true);
+          setAudioError(null);
+        }}
+        onPause={() => setIsPlaying(false)}
+        onError={(e) => {
+          const err = audioRef.current?.error;
+          console.error('[Host Audio] Element Error:', err);
+          if (err) {
+            if (err.code === 1) setAudioError('Audio fetching aborted.');
+            else if (err.code === 2) setAudioError('Network error downloading audio.');
+            else if (err.code === 3) setAudioError('Audio decoding failed (unsupported format).');
+            else if (err.code === 4) setAudioError('Audio source not supported or CORS blocked.');
+            else setAudioError(`Playback error: ${err.message || 'unknown error'}`);
+          } else {
+            setAudioError('Failed to load audio preview.');
+          }
+          setIsPlaying(false);
+        }}
+      />
 
       <div className="max-w-6xl mx-auto space-y-6">
 
@@ -411,10 +477,17 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
                   </p>
                   <p className="text-lg font-black text-white truncate">{nowPlaying.title}</p>
                   <p className="text-sm text-zinc-400 truncate mb-2">{nowPlaying.artist}</p>
-                  {(!nowPlaying.previewUrl || (!nowPlaying.previewUrl.startsWith('http://') && !nowPlaying.previewUrl.startsWith('https://'))) && (
+                  {(!nowPlaying.previewUrl || (!nowPlaying.previewUrl.startsWith('http://') && !nowPlaying.previewUrl.startsWith('https://'))) ? (
                     <span className="text-[9px] bg-red-950/80 border border-red-900/50 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
                       No Preview
                     </span>
+                  ) : (
+                    audioError && (
+                      <div className="mt-2 text-[10px] bg-red-950/60 border border-red-900/50 text-red-400 px-2 py-1 rounded flex items-center gap-1.5 justify-center md:justify-start font-mono">
+                        <AlertTriangle className="w-3 h-3 text-red-400" />
+                        {audioError}
+                      </div>
+                    )
                   )}
                 </div>
               )}
@@ -717,6 +790,29 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Autoplay Unlock Overlay */}
+      {!isAudioUnlocked && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 max-w-md w-full text-center space-y-6 mx-4 shadow-[0_0_50px_rgba(0,240,255,0.15)]">
+            <div className="w-16 h-16 mx-auto rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+              <Zap className="w-8 h-8 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-black tracking-wider text-white">Vibebox Host Ready</h2>
+              <p className="text-sm text-zinc-400 font-medium">
+                To comply with browser security rules, we need a single click to enable live audio playback for this session.
+              </p>
+            </div>
+            <Button
+              onClick={handleUnlockAudio}
+              className="w-full bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-600 hover:to-pink-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-500/25 transition-all duration-300 transform hover:scale-[1.02]"
+            >
+              Start Session & Enable Audio
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 );

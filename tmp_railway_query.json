@@ -1,1 +1,1 @@
-{"query":"{ me { name email } }"}
+{"query":"{ me { teams { edges { node { id name } } } } }"}
