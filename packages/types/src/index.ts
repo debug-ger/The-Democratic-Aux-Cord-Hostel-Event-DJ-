@@ -114,6 +114,7 @@ export const SocketEvents = {
   ROOM_SETTINGS_UPDATE: 'room:settings-update',
   HOST_TRANSFER: 'host:transfer',
   HOST_RETRACT: 'host:retract',
+  SESSION_END: 'session:end',
 
   // Server → Client
   QUEUE_UPDATE: 'queue:update',
@@ -125,4 +126,5 @@ export const SocketEvents = {
   PLAYLIST_RECOMMENDED: 'playlist:recommended',
   HOST_TRANSFERRED: 'host:transferred',
   TOP_VOTERS_UPDATE: 'top-voters:update',
+  SESSION_ENDED: 'session:ended',
 } as const;

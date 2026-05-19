@@ -193,6 +193,7 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
   const prevSong = useQueueStore(s => s.prevSong);
   const aiSuggestion = useQueueStore(s => s.aiSuggestion);
   const lastSkippedSong = useQueueStore(s => s.lastSkippedSong);
+  const endSession = useQueueStore(s => s.endSession);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
@@ -368,10 +369,9 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
       {/* Full-screen Background Image */}
       <div className="absolute inset-0 -z-50 bg-cover bg-center opacity-[0.28] pointer-events-none" style={{ backgroundImage: "url('/images/bg-host.jpg')" }} />
 
-      {/* Hidden audio element with error tracking and CORS attributes */}
+      {/* Hidden audio element */}
       <audio
         ref={audioRef}
-        crossOrigin="anonymous"
         preload="auto"
         onEnded={handleEnded}
         onPlay={() => {
@@ -781,10 +781,14 @@ export default function HostDashboardPage({ params }: { params: Promise<{ code: 
               </div>
 
               <Button
-                onClick={() => setIsRecapOpen(false)}
-                className="w-full mt-6 bg-white text-black hover:bg-zinc-200 font-bold uppercase tracking-wider h-11"
+                onClick={() => {
+                  setIsRecapOpen(false);
+                  endSession();
+                  router.push('/');
+                }}
+                className="w-full mt-6 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold uppercase tracking-wider h-11 shadow-lg shadow-pink-500/25"
               >
-                Back to Dashboard
+                End Session & Exit
               </Button>
             </motion.div>
           </motion.div>

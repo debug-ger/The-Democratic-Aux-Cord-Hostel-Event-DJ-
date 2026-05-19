@@ -324,6 +324,38 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage(SocketEvents.SESSION_END)
+  async handleSessionEnd(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomCode: string },
+  ) {
+    const code = payload.roomCode.toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) return;
+
+    // Only the host may end the session
+    if (room.hostSocketId !== client.id) return;
+
+    // Notify all clients in the room that the session has ended
+    this.server.to(code).emit(SocketEvents.SESSION_ENDED, { roomCode: code });
+
+    // Clean up in-memory state
+    this.rooms.delete(code);
+
+    // Remove all socket-room mappings for this room's members
+    for (const socketId of room.members) {
+      this.socketRoomMap.delete(socketId);
+    }
+
+    // Hard-delete room from database (cascade deletes queues, sessions, etc.)
+    try {
+      await this.prisma.room.delete({ where: { roomCode: code } });
+      console.log(`[WS] Session ended and room ${code} deleted from DB`);
+    } catch (err) {
+      console.warn(`[WS] Room ${code} not found in DB during session end:`, err);
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────
 
   private async broadcastQueueWithAi(roomCode: string, room: RoomState) {

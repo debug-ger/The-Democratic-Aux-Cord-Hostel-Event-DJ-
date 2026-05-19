@@ -33,6 +33,7 @@ interface QueueStore {
   roomStats: RoomStats | null;
   aiSuggestion: AiSuggestion | null;
   lastSkippedSong: Song | null;
+  sessionEnded: boolean;
 
   // Actions
   connect: (roomCode: string, isHost?: boolean) => void;
@@ -42,6 +43,7 @@ interface QueueStore {
   nextSong: () => void;
   prevSong: () => void;
   hostAction: (action: 'pin' | 'remove', trackId: string) => void;
+  endSession: () => void;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:3001';
@@ -55,6 +57,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   roomStats: null,
   aiSuggestion: null,
   lastSkippedSong: null,
+  sessionEnded: false,
 
   connect: (roomCode, isHost = false) => {
     const existing = get().socket;
@@ -63,7 +66,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const socket = io(WS_URL, { transports: ['websocket', 'polling'] });
 
     socket.on('connect', () => {
-      set({ connected: true });
+      set({ connected: true, sessionEnded: false });
       socket.emit(SocketEvents.ROOM_JOIN, { roomCode, isHost });
     });
 
@@ -93,13 +96,18 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       }, 4500);
     });
 
-    set({ socket, roomCode });
+    // Session ended by host — notify all guests
+    socket.on(SocketEvents.SESSION_ENDED, () => {
+      set({ sessionEnded: true });
+    });
+
+    set({ socket, roomCode, sessionEnded: false });
   },
 
   disconnect: () => {
     const { socket } = get();
     if (socket) socket.disconnect();
-    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null, lastSkippedSong: null });
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null, lastSkippedSong: null, sessionEnded: false });
   },
 
   addSong: (song) => {
@@ -131,5 +139,16 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     if (!socket || !roomCode) return;
     const payload: HostActionPayload = { roomCode, trackId, action };
     socket.emit(SocketEvents.HOST_ACTION, payload);
+  },
+
+  endSession: () => {
+    const { socket, roomCode } = get();
+    if (socket && roomCode) {
+      socket.emit(SocketEvents.SESSION_END, { roomCode });
+    }
+    // Disconnect after signaling server
+    const s = get().socket;
+    if (s) s.disconnect();
+    set({ socket: null, connected: false, roomCode: null, queue: [], vibe: null, aiSuggestion: null, lastSkippedSong: null, sessionEnded: false });
   },
 }));

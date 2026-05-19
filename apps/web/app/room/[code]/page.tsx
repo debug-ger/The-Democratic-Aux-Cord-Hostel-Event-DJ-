@@ -77,6 +77,26 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
   const addSong = useQueueStore(s => s.addSong);
   const voteSong = useQueueStore(s => s.voteSong);
   const lastSkippedSong = useQueueStore(s => s.lastSkippedSong);
+  const sessionEnded = useQueueStore(s => s.sessionEnded);
+
+  // ── Session-ended auto-redirect ────────────────────────────────
+  const [redirectCountdown, setRedirectCountdown] = useState(5);
+  useEffect(() => {
+    if (!sessionEnded) return;
+    setRedirectCountdown(5);
+    const interval = setInterval(() => {
+      setRedirectCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          disconnectRef.current();
+          router.push('/');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sessionEnded, router]);
 
   // ── Search State ───────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -542,6 +562,54 @@ export default function GuestRoomPage({ params }: { params: Promise<{ code: stri
               <p className="text-sm font-bold text-white truncate">{lastSkippedSong.title}</p>
               <p className="text-xs text-zinc-400 truncate">Voted off the queue by the crowd</p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Session Ended Overlay (host terminated session) ──────────────── */}
+      <AnimatePresence>
+        {sessionEnded && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 24 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 24 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              className="bg-[#0a0a0c] border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center space-y-6 shadow-[0_0_60px_rgba(255,0,127,0.2)]"
+            >
+              {/* Animated icon */}
+              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-pink-500/20 to-red-500/20 border border-pink-500/30 flex items-center justify-center">
+                <span className="text-4xl">🎵</span>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black text-white tracking-wide">Session Ended</h2>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  The host has ended this Vibebox session.
+                  <br />Thanks for voting — the crowd spoke!
+                </p>
+              </div>
+
+              {/* Countdown ring */}
+              <div className="flex items-center justify-center gap-3">
+                <div className="w-12 h-12 rounded-full border-2 border-pink-500/40 flex items-center justify-center">
+                  <span className="text-pink-400 font-black text-xl font-mono">{redirectCountdown}</span>
+                </div>
+                <p className="text-zinc-500 text-xs">Redirecting to home…</p>
+              </div>
+
+              <Button
+                onClick={() => { disconnectRef.current(); router.push('/'); }}
+                className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold uppercase tracking-wider h-11 shadow-lg shadow-pink-500/25"
+              >
+                Go Home Now
+              </Button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
