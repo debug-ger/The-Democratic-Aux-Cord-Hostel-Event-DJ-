@@ -15,7 +15,8 @@ COPY packages/types ./packages/types
 # Generate Prisma client & build
 WORKDIR /app/apps/server
 RUN npx prisma generate
-RUN ./node_modules/.bin/nest build
+RUN ./node_modules/.bin/nest build || (echo "=== NEST BUILD FAILED ===" && exit 1)
+RUN ls -la dist/ || echo "=== NO DIST FOLDER CREATED ==="
 
 # ── Stage 2: Runner ──────────────────────────────────────────
 FROM node:20-alpine AS runner
