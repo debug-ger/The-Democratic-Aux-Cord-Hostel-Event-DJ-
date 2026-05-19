@@ -16,8 +16,11 @@ COPY packages/types ./packages/types
 # Generate Prisma client & build
 WORKDIR /app/apps/server
 RUN npx prisma generate
-RUN ./node_modules/.bin/nest build
-RUN echo "=== Contents of /app/apps/server ===" && ls -la /app/apps/server/ && echo "=== Contents of dist ===" && ls -la /app/apps/server/dist/ || echo "=== dist folder does not exist ==="
+RUN echo "=== Before build ===" && pwd && ls -la && \
+    rm -rf dist && \
+    npm run build 2>&1 && \
+    echo "=== After build ===" && ls -la && \
+    if [ -d dist ]; then echo "✓ dist folder exists" && ls -la dist/ | head -20; else echo "✗ dist folder NOT FOUND" && exit 1; fi
 
 
 # ── Stage 2: Runner ──────────────────────────────────────────
