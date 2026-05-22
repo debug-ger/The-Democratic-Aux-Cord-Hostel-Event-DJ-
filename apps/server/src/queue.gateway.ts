@@ -39,7 +39,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleJoinRoom(client: Socket, roomCode: string) {
     client.join(roomCode);
     console.log(`${client.id} joined room ${roomCode}`);
-    
+
     // Initialize room if it doesn't exist
     if (!this.rooms[roomCode]) {
       this.rooms[roomCode] = [];
@@ -52,7 +52,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('song:add')
   handleAddSong(client: Socket, payload: { roomCode: string; song: Omit<Song, 'score'> }) {
     const { roomCode, song } = payload;
-    
+
     if (!this.rooms[roomCode]) {
       this.rooms[roomCode] = [];
     }
@@ -71,16 +71,16 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (this.rooms[roomCode]) {
       const songIndex = this.rooms[roomCode].findIndex(s => s.id === trackId);
-      
+
       if (songIndex !== -1) {
         this.rooms[roomCode][songIndex].score += delta;
 
         // Auto-skip logic: Remove if score < -3
         if (this.rooms[roomCode][songIndex].score < -3) {
-           this.rooms[roomCode].splice(songIndex, 1);
+          this.rooms[roomCode].splice(songIndex, 1);
         } else {
-           // Sort by score descending
-           this.rooms[roomCode].sort((a, b) => b.score - a.score);
+          // Sort by score descending
+          this.rooms[roomCode].sort((a, b) => b.score - a.score);
         }
 
         this.broadcastQueue(roomCode);
