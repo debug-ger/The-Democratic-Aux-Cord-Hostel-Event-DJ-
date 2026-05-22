@@ -22,3 +22,5 @@ async function bootstrap() {
   console.log(`🎵 Vibebox server running on http://localhost:${port}/api`);
 }
 bootstrap();
+// Trigger deploy: package-lock.json sync
+// Trigger deploy: package-lock.json sync
