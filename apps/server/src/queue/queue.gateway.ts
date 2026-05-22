@@ -34,7 +34,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private rooms = new Map<string, RoomState>();
   private socketRoomMap = new Map<string, string>();
 
-  constructor(private aiService: AiService, private prisma: PrismaService) {}
+  constructor(private aiService: AiService, private prisma: PrismaService) { }
 
   // ── Lifecycle ─────────────────────────────────────────────────
 
@@ -159,7 +159,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userScores.set(song.userId, (userScores.get(song.userId) || 0) + song.score);
       }
     }
-    
+
     let topUserId: string | null = null;
     let maxScore = 0;
     for (const [uid, score] of userScores.entries()) {
@@ -184,7 +184,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
         try {
           const u = await this.prisma.user.findUnique({ where: { id: uid } });
           if (u) username = u.username;
-        } catch {}
+        } catch { }
         return { userId: uid, username, voteScore: score };
       })
     );
@@ -295,10 +295,10 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const u = await this.prisma.user.findUnique({ where: { id: payload.newHostId } });
       if (u) newHostUsername = u.username;
-    } catch {}
-    
-    this.server.to(code).emit(SocketEvents.HOST_TRANSFERRED, { 
-      newHostId: payload.newHostId, 
+    } catch { }
+
+    this.server.to(code).emit(SocketEvents.HOST_TRANSFERRED, {
+      newHostId: payload.newHostId,
       newHostUsername,
       previousHostSocketId: prevHostSocketId,
     });
@@ -417,7 +417,7 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
       take: 20
     });
 
-    const librarySongs: Song[] = library.map(l => ({
+    const librarySongs: Song[] = library.map((l: any) => ({
       id: l.spotifyTrackId,
       title: l.title,
       artist: l.artist,
