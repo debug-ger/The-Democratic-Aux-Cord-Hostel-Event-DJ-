@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ARG CACHE_BUST=1
 
-# Install dependencies
+# Install ALL workspace dependencies from root
 COPY package*.json ./
 COPY apps/server/package*.json ./apps/server/
 COPY packages/types/package*.json ./packages/types/
@@ -17,7 +17,6 @@ COPY packages/types ./packages/types
 WORKDIR /app/apps/server
 RUN npx prisma generate
 RUN ./node_modules/.bin/nest build
-RUN echo "=== Contents of /app/apps/server ===" && ls -la /app/apps/server/ && echo "=== Contents of dist ===" && ls -la /app/apps/server/dist/ || echo "=== dist folder does not exist ==="
 
 
 # ── Stage 2: Runner ──────────────────────────────────────────
@@ -26,12 +25,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy production node_modules and built output
-COPY --from=builder /app/apps/server/node_modules ./node_modules
+# Copy root node_modules (contains hoisted @repo/types and other shared deps)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy server node_modules, built output, prisma schema & migrations
+COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=builder /app/apps/server/dist ./dist
 COPY --from=builder /app/apps/server/prisma ./prisma
 COPY --from=builder /app/apps/server/package.json ./package.json
 
+# Write startup script: run DB migrations then start the server
+RUN printf '#!/bin/sh\nset -e\necho "Running Prisma migrations..."\nnpx prisma migrate deploy --schema=/app/prisma/schema.prisma\necho "Starting server..."\nexec node dist/main\n' > /app/start.sh && chmod +x /app/start.sh
+
 EXPOSE 3001
 
-CMD ["node", "dist/main"]
+CMD ["/app/start.sh"]
