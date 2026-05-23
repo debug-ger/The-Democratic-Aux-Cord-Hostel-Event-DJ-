@@ -1,9 +1,8 @@
 # ── Stage 1: Builder ─────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-ARG CACHE_BUST=1
 
-# Install ALL workspace dependencies from root
+# Install workspace dependencies
 COPY package*.json ./
 COPY apps/server/package*.json ./apps/server/
 COPY packages/types/package*.json ./packages/types/
@@ -13,7 +12,7 @@ RUN npm ci --workspace=apps/server --workspace=packages/types --ignore-scripts
 COPY apps/server ./apps/server
 COPY packages/types ./packages/types
 
-# Generate Prisma client & build
+# Generate Prisma client & bundle build with webpack
 WORKDIR /app/apps/server
 RUN npx prisma generate
 RUN ./node_modules/.bin/nest build
@@ -25,17 +24,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy root node_modules (contains hoisted @repo/types and other shared deps)
-COPY --from=builder /app/node_modules ./node_modules
+# Only need prisma binary + @prisma/client (not bundled by webpack)
+COPY --from=builder /app/apps/server/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/server/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/apps/server/node_modules/prisma ./node_modules/prisma
 
-# Copy server node_modules, built output, prisma schema & package.json
-COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
-COPY --from=builder /app/apps/server/dist ./dist
-COPY --from=builder /app/apps/server/prisma ./prisma
+# Copy bundled output and prisma schema
+COPY --from=builder /app/apps/server/dist/main.js ./dist/main.js
+COPY --from=builder /app/apps/server/prisma/schema.prisma ./prisma/schema.prisma
 COPY --from=builder /app/apps/server/package.json ./package.json
 
-# Startup: push schema to DB (creates tables if missing), then start server
-RUN printf '#!/bin/sh\nset -e\necho "Pushing Prisma schema to database..."\nnode_modules/.bin/prisma db push --schema=/app/prisma/schema.prisma --accept-data-loss\necho "Starting server..."\nexec node dist/main\n' > /app/start.sh && chmod +x /app/start.sh
+# Startup: push schema to DB then start server
+RUN printf '#!/bin/sh\nset -e\necho "Pushing schema to database..."\n./node_modules/.bin/prisma db push --schema=/app/prisma/schema.prisma --accept-data-loss\necho "Starting server..."\nexec node dist/main.js\n' > /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 3001
 
