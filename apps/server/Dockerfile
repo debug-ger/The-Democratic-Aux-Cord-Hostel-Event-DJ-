@@ -28,14 +28,14 @@ ENV NODE_ENV=production
 # Copy root node_modules (contains hoisted @repo/types and other shared deps)
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copy server node_modules, built output, prisma schema & migrations
+# Copy server node_modules, built output, prisma schema & package.json
 COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=builder /app/apps/server/dist ./dist
 COPY --from=builder /app/apps/server/prisma ./prisma
 COPY --from=builder /app/apps/server/package.json ./package.json
 
-# Write startup script: run DB migrations then start the server
-RUN printf '#!/bin/sh\nset -e\necho "Running Prisma migrations..."\nnpx prisma migrate deploy --schema=/app/prisma/schema.prisma\necho "Starting server..."\nexec node dist/main\n' > /app/start.sh && chmod +x /app/start.sh
+# Startup: push schema to DB (creates tables if missing), then start server
+RUN printf '#!/bin/sh\nset -e\necho "Pushing Prisma schema to database..."\nnode_modules/.bin/prisma db push --schema=/app/prisma/schema.prisma --accept-data-loss\necho "Starting server..."\nexec node dist/main\n' > /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 3001
 
